@@ -1,0 +1,13 @@
+[binaries]
+ar = '/opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin//llvm-ar'
+c = ['ccache', '/opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin//aarch64-linux-android33-clang']
+cpp = ['ccache', '/opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin//aarch64-linux-android33-clang++', '-fno-exceptions', '-fno-unwind-tables', '-fno-asynchronous-unwind-tables', '-static-libstdc++']
+c_ld = 'lld'
+cpp_ld = 'lld'
+strip = '/opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin//aarch64-linux-android-strip'
+pkgconfig = ['env', 'PKG_CONFIG_LIBDIR=NDKDIR/pkgconfig', '/usr/bin/pkg-config']
+[host_machine]
+system = 'android'
+cpu_family = 'aarch64'
+cpu = 'armv8'
+endian = 'little'
