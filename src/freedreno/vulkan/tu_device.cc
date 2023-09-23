@@ -281,6 +281,7 @@ get_device_extensions(const struct tu_physical_device *device,
 
 #ifdef ANDROID
    if (vk_android_get_ugralloc() != NULL) {
+      ext->ANDROID_external_memory_android_hardware_buffer = true,
       ext->ANDROID_native_buffer = true;
    }
 #endif
