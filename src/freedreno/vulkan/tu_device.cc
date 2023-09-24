@@ -41,6 +41,7 @@
 
 #ifdef ANDROID
 #include "util/u_gralloc/u_gralloc.h"
+#include <vndk/hardware_buffer.h>
 #endif
 
 #if defined(VK_USE_PLATFORM_WAYLAND_KHR) || \
@@ -2616,6 +2617,15 @@ tu_AllocateMemory(VkDevice _device,
          /* take ownership and close the fd */
          close(fd_info->fd);
       }
+   } else if (mem->vk.ahardware_buffer) {
+#ifdef ANDROID
+      const native_handle_t *handle = AHardwareBuffer_getNativeHandle(mem->vk.ahardware_buffer);
+      assert(handle->numFds > 0);
+      size_t size = lseek(handle->data[0], 0, SEEK_END);
+      result = tu_bo_init_dmabuf(device, &mem->bo, size, handle->data[0]);
+#else
+      result = VK_ERROR_FEATURE_NOT_PRESENT;
+#endif
    } else {
       uint64_t client_address = 0;
       BITMASK_ENUM(tu_bo_alloc_flags) alloc_flags = TU_BO_ALLOC_NO_FLAGS;
