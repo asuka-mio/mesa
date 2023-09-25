@@ -11,6 +11,7 @@ files_u_gralloc = files(
   'u_gralloc.c',
   'u_gralloc_fallback.c',
   'u_gralloc_cros_api.c',
+  'u_gralloc_libdrm.c',
 )
 
 if dep_android_mapper4.found()
