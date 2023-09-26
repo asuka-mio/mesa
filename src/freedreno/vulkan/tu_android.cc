@@ -65,7 +65,7 @@ tu_hal_open(const struct hw_module_t *mod,
       .GetInstanceProcAddr = tu_GetInstanceProcAddr,
    };
 
-   *vk_android_get_ugralloc_ptr() = u_gralloc_create(U_GRALLOC_TYPE_AUTO);
+   *vk_android_get_ugralloc_ptr() = u_gralloc_create(U_GRALLOC_TYPE_QCOM);
 
    *dev = &hal_dev->common;
    return 0;
