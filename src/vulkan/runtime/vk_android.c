@@ -209,11 +209,15 @@ vk_gralloc_to_drm_explicit_layout(
    struct u_gralloc *u_gralloc = vk_android_get_ugralloc();
    assert(u_gralloc);
 
-   if (u_gralloc_get_buffer_basic_info(u_gralloc, in_hnd, &info) != 0)
+   if (u_gralloc_get_buffer_basic_info(u_gralloc, in_hnd, &info) != 0) {
+      mesa_loge("Invailid hnd basic info");
       return VK_ERROR_INVALID_EXTERNAL_HANDLE;
+   }
 
-   if (info.num_planes > max_planes)
+   if (info.num_planes > max_planes) {
+      mesa_loge("Max plane %d got %d", max_planes, info.num_planes);
       return VK_ERROR_INVALID_EXTERNAL_HANDLE;
+   }
 
    bool is_disjoint = false;
    for (int i = 1; i < info.num_planes; i++) {
@@ -224,6 +228,7 @@ vk_gralloc_to_drm_explicit_layout(
    }
 
    if (is_disjoint) {
+      mesa_loge("Disjoint planes");
       /* We don't support disjoint planes yet */
       return VK_ERROR_INVALID_EXTERNAL_HANDLE;
    }
