@@ -445,7 +445,7 @@ tu_image_init(struct tu_device *device, struct tu_image *image,
    bool ubwc_enabled = true;
 
    /* use linear tiling if requested */
-   if (pCreateInfo->tiling == VK_IMAGE_TILING_LINEAR || modifier == DRM_FORMAT_MOD_LINEAR) {
+   if (image->vk.tiling == VK_IMAGE_TILING_LINEAR || modifier == DRM_FORMAT_MOD_LINEAR) {
       tile_mode = TILE6_LINEAR;
       ubwc_enabled = false;
    }
@@ -457,7 +457,7 @@ tu_image_init(struct tu_device *device, struct tu_image *image,
    }
 
    /* No sense in tiling a 1D image, you'd just waste space and cache locality. */
-   if (pCreateInfo->imageType == VK_IMAGE_TYPE_1D) {
+   if (image->vk.image_type == VK_IMAGE_TYPE_1D) {
       tile_mode = TILE6_LINEAR;
       ubwc_enabled = false;
    }
@@ -465,7 +465,7 @@ tu_image_init(struct tu_device *device, struct tu_image *image,
    /* Fragment density maps are sampled on the CPU and we don't support
     * sampling tiled images on the CPU or UBWC at the moment.
     */
-   if (pCreateInfo->usage & VK_IMAGE_USAGE_FRAGMENT_DENSITY_MAP_BIT_EXT) {
+   if (image->vk.usage & VK_IMAGE_USAGE_FRAGMENT_DENSITY_MAP_BIT_EXT) {
       tile_mode = TILE6_LINEAR;
       ubwc_enabled = false;
    }
@@ -476,9 +476,9 @@ tu_image_init(struct tu_device *device, struct tu_image *image,
    bool has_r8g8 = tu_is_r8g8(format);
 
    if (ubwc_enabled &&
-       !ubwc_possible(device, image->vk.format, pCreateInfo->imageType,
-                      pCreateInfo->usage, image->vk.stencil_usage,
-                      device->physical_device->info, pCreateInfo->samples,
+       !ubwc_possible(device, image->vk.format, image->vk.image_type,
+                      image->vk.usage, image->vk.stencil_usage,
+                      device->physical_device->info, image->vk.samples,
                       device->use_z24uint_s8uint))
       ubwc_enabled = false;
 
@@ -494,10 +494,12 @@ tu_image_init(struct tu_device *device, struct tu_image *image,
     *   tiling is still possible
     * - figure out which UBWC compressions are compatible to keep it enabled
     */
-   if ((pCreateInfo->flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) &&
+   if ((image->vk.create_flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) &&
        !vk_format_is_depth_or_stencil(image->vk.format)) {
-      const VkImageFormatListCreateInfo *fmt_list =
-         vk_find_struct_const(pCreateInfo->pNext, IMAGE_FORMAT_LIST_CREATE_INFO);
+      const VkImageFormatListCreateInfo *fmt_list = NULL;
+      if (pCreateInfo)
+         fmt_list = vk_find_struct_const(pCreateInfo->pNext, IMAGE_FORMAT_LIST_CREATE_INFO);
+
       if (!tu6_mutable_format_list_ubwc_compatible(fmt_list)) {
          if (ubwc_enabled) {
             if (fmt_list && fmt_list->viewFormatCount == 2) {
@@ -546,8 +548,8 @@ tu_image_init(struct tu_device *device, struct tu_image *image,
    for (uint32_t i = 0; i < tu6_plane_count(image->vk.format); i++) {
       struct fdl_layout *layout = &image->layout[i];
       enum pipe_format format = tu6_plane_format(image->vk.format, i);
-      uint32_t width0 = pCreateInfo->extent.width;
-      uint32_t height0 = pCreateInfo->extent.height;
+      uint32_t width0 = image->vk.extent.width;
+      uint32_t height0 = image->vk.extent.height;
 
       if (i > 0) {
          switch (image->vk.format) {
@@ -570,9 +572,9 @@ tu_image_init(struct tu_device *device, struct tu_image *image,
 
       if (plane_layouts) {
          /* only expect simple 2D images for now */
-         if (pCreateInfo->mipLevels != 1 ||
-            pCreateInfo->arrayLayers != 1 ||
-            pCreateInfo->extent.depth != 1)
+         if (image->vk.mip_levels != 1 ||
+            image->vk.array_layers != 1 ||
+            image->vk.extent.depth != 1)
             return vk_error(device, VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT);
 
          plane_layout.offset = plane_layouts[i].offset;
@@ -584,12 +586,12 @@ tu_image_init(struct tu_device *device, struct tu_image *image,
       layout->ubwc = ubwc_enabled;
 
       if (!fdl6_layout(layout, format,
-                       pCreateInfo->samples,
+                       image->vk.samples,
                        width0, height0,
-                       pCreateInfo->extent.depth,
-                       pCreateInfo->mipLevels,
-                       pCreateInfo->arrayLayers,
-                       pCreateInfo->imageType == VK_IMAGE_TYPE_3D,
+                       image->vk.extent.depth,
+                       image->vk.mip_levels,
+                       image->vk.array_layers,
+                       image->vk.image_type == VK_IMAGE_TYPE_3D,
                        plane_layouts ? &plane_layout : NULL)) {
          assert(plane_layouts); /* can only fail with explicit layout */
          return vk_error(device, VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT);
@@ -603,7 +605,7 @@ tu_image_init(struct tu_device *device, struct tu_image *image,
        */
       if (!plane_layouts && i > 0) {
          uint32_t offset = ALIGN_POT(image->total_size, 4096);
-         for (int i = 0; i < pCreateInfo->mipLevels; i++) {
+         for (int i = 0; i < image->vk.mip_levels; i++) {
             layout->slices[i].offset += offset;
             layout->ubwc_slices[i].offset += offset;
          }
