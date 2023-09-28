@@ -1357,7 +1357,7 @@ elif cpp.links('''
   pre_args += '-DHAVE_BSD_QSORT_R'
 endif
 
-if cc.has_header_symbol('time.h', 'struct timespec')
+if true
    pre_args += '-DHAVE_STRUCT_TIMESPEC'
 endif
 
