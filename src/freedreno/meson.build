@@ -29,10 +29,9 @@ dep_lua = dependency('lua54', 'lua53', 'lua52', 'lua', required: false,
                      fallback : ['lua', 'lua_dep'], version: '>=5.2')
 
 dep_libarchive = dependency('libarchive', fallback : ['libarchive', 'libarchive_dep'], required: false)
-dep_libxml2 = dependency('libxml-2.0', fallback: ['libxml2', 'libxml2_dep'], required: false)
 prog_gzip = find_program('gzip', required: false)
 
-install_fd_decode_tools = dep_libxml2.found() and prog_gzip.found() and \
+install_fd_decode_tools = false and prog_gzip.found() and \
   with_tools.contains('freedreno')
 
 subdir('registers')
@@ -57,7 +56,7 @@ if with_perfetto and (with_datasources.contains('freedreno') or with_datasources
 endif
 
 # Everything that depends on rnn requires (indirectly) libxml2:
-if dep_libxml2.found() and with_tools.contains('freedreno')
+if false and with_tools.contains('freedreno')
   subdir('rnn')
   subdir('decode')
   subdir('afuc')
