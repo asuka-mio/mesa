@@ -442,6 +442,10 @@ tu_image_update_layout(struct tu_device *device, struct tu_image *image,
    image->vk.drm_format_mod = modifier;
    if (modifier == DRM_FORMAT_MOD_LINEAR) {
       image->force_linear_tile = true;
+   }
+
+   if (image->force_linear_tile) {
+      tile_mode = TILE6_LINEAR;
       image->ubwc_enabled = false;
    }
 
