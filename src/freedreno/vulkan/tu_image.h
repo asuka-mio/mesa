@@ -39,6 +39,9 @@ struct tu_image
    uint32_t lrz_offset;
    uint32_t lrz_fc_offset;
    uint32_t lrz_fc_size;
+
+   bool disable_ubwc_for_mutable_fmt;
+   bool fmt_list_linear_tile;
 };
 VK_DEFINE_NONDISP_HANDLE_CASTS(tu_image, vk.base, VkImage, VK_OBJECT_TYPE_IMAGE)
 
@@ -131,7 +134,6 @@ tu_fragment_density_map_sample(const struct tu_image_view *fdm,
 
 VkResult
 tu_image_init(struct tu_device *device, struct tu_image *image,
-              const VkImageCreateInfo *pCreateInfo, uint64_t modifier,
-              const VkSubresourceLayout *plane_layouts);
+              uint64_t modifier, const VkSubresourceLayout *plane_layouts);
 
 #endif /* TU_IMAGE_H */

@@ -390,7 +390,7 @@ ubwc_possible(struct tu_device *device,
  * trying to, for example, sample R16 as R8G8 we need to demote to linear.
  */
 static bool
-format_list_reinterprets_r8g8_r16(enum pipe_format format, const VkImageFormatListCreateInfo *fmt_list)
+format_list_reinterprets_r8g8_r16(enum pipe_format format, const VkFormat *formats, uint32_t viewFormatCount)
 {
    /* Check if it's actually a 2-cpp color format. */
    if (!tu_is_r8g8_compatible(format))
@@ -399,14 +399,13 @@ format_list_reinterprets_r8g8_r16(enum pipe_format format, const VkImageFormatLi
    /* If there's no format list, then the app may reinterpret to any compatible
     * format.
     */
-   if (!fmt_list || !fmt_list->viewFormatCount)
+   if (!viewFormatCount)
       return true;
 
    bool has_r8g8 = false;
    bool has_non_r8g8 = false;
-   for (uint32_t i = 0; i < fmt_list->viewFormatCount; i++) {
-      enum pipe_format format =
-         tu_vk_format_to_pipe_format(fmt_list->pViewFormats[i]);
+   for (uint32_t i = 0; i < viewFormatCount; i++) {
+      enum pipe_format format = tu_vk_format_to_pipe_format(formats[i]);
       if (tu_is_r8g8(format))
          has_r8g8 = true;
       else
@@ -416,17 +415,16 @@ format_list_reinterprets_r8g8_r16(enum pipe_format format, const VkImageFormatLi
 }
 
 static bool
-format_list_has_swaps(const VkImageFormatListCreateInfo *fmt_list)
+format_list_has_swaps(const VkFormat *formats, uint32_t viewFormatCount)
 {
    /* If there's no format list, then the app may reinterpret to any compatible
     * format, and presumably one would have the swap set.
     */
-   if (!fmt_list || !fmt_list->viewFormatCount)
+   if (!viewFormatCount)
       return true;
 
-   for (uint32_t i = 0; i < fmt_list->viewFormatCount; i++) {
-      enum pipe_format format =
-         tu_vk_format_to_pipe_format(fmt_list->pViewFormats[i]);
+   for (uint32_t i = 0; i < viewFormatCount; i++) {
+      enum pipe_format format = tu_vk_format_to_pipe_format(formats[i]);
 
       if (tu6_format_texture(format, TILE6_LINEAR).swap)
          return true;
@@ -436,8 +434,7 @@ format_list_has_swaps(const VkImageFormatListCreateInfo *fmt_list)
 
 VkResult
 tu_image_init(struct tu_device *device, struct tu_image *image,
-              const VkImageCreateInfo *pCreateInfo, uint64_t modifier,
-              const VkSubresourceLayout *plane_layouts)
+              uint64_t modifier, const VkSubresourceLayout *plane_layouts)
 {
    image->vk.drm_format_mod = modifier;
 
@@ -494,39 +491,18 @@ tu_image_init(struct tu_device *device, struct tu_image *image,
     *   tiling is still possible
     * - figure out which UBWC compressions are compatible to keep it enabled
     */
-   if ((image->vk.create_flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) &&
-       !vk_format_is_depth_or_stencil(image->vk.format)) {
-      const VkImageFormatListCreateInfo *fmt_list = NULL;
-      if (pCreateInfo)
-         fmt_list = vk_find_struct_const(pCreateInfo->pNext, IMAGE_FORMAT_LIST_CREATE_INFO);
+   if (image->disable_ubwc_for_mutable_fmt) {
+      if (ubwc_enabled) {
+         perf_debug(
+            device,
+            "Disabling UBWC on %dx%d %s resource due to mutable formats ",
+            image->vk.extent.width, image->vk.extent.height,
+            util_format_name(vk_format_to_pipe_format(image->vk.format)));
+         ubwc_enabled = false;
+      }
 
-      if (!tu6_mutable_format_list_ubwc_compatible(fmt_list)) {
-         if (ubwc_enabled) {
-            if (fmt_list && fmt_list->viewFormatCount == 2) {
-               perf_debug(
-                  device,
-                  "Disabling UBWC on %dx%d %s resource due to mutable formats "
-                  "(fmt list %s, %s)",
-                  image->vk.extent.width, image->vk.extent.height,
-                  util_format_name(vk_format_to_pipe_format(image->vk.format)),
-                  util_format_name(vk_format_to_pipe_format(fmt_list->pViewFormats[0])),
-                  util_format_name(vk_format_to_pipe_format(fmt_list->pViewFormats[1])));
-            } else {
-               perf_debug(
-                  device,
-                  "Disabling UBWC on %dx%d %s resource due to mutable formats "
-                  "(fmt list %s)",
-                  image->vk.extent.width, image->vk.extent.height,
-                  util_format_name(vk_format_to_pipe_format(image->vk.format)),
-                  fmt_list ? "present" : "missing");
-            }
-            ubwc_enabled = false;
-         }
-
-         if (format_list_reinterprets_r8g8_r16(format, fmt_list) ||
-            format_list_has_swaps(fmt_list)) {
-            tile_mode = TILE6_LINEAR;
-         }
+      if (image->fmt_list_linear_tile) {
+         tile_mode = TILE6_LINEAR;
       }
    }
 
@@ -693,6 +669,24 @@ tu_CreateImage(VkDevice _device,
    if (!image)
       return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
+   enum pipe_format format = tu_vk_format_to_pipe_format(image->vk.format);
+   VkFormat *fmt_list_formats = NULL;
+   uint32_t fmt_list_count = 0;
+   result = vk_image_create_get_format_list(&device->vk, pCreateInfo, alloc, 
+                                          &fmt_list_formats,
+                                          &fmt_list_count);
+
+   if (result != VK_SUCCESS)
+         goto fail;
+
+   image->disable_ubwc_for_mutable_fmt = 
+      !tu6_mutable_format_list_ubwc_compatible(fmt_list_formats, fmt_list_count);
+   image->fmt_list_linear_tile = 
+      format_list_reinterprets_r8g8_r16(format, fmt_list_formats, fmt_list_count) || 
+      format_list_has_swaps(fmt_list_formats, fmt_list_count);
+
+   vk_free2(&device->vk.alloc, alloc, fmt_list_formats);
+
    if (pCreateInfo->tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT) {
       const VkImageDrmFormatModifierListCreateInfoEXT *mod_info =
          vk_find_struct_const(pCreateInfo->pNext,
@@ -745,8 +739,7 @@ tu_CreateImage(VkDevice _device,
       return VK_SUCCESS;
    }
 
-   result = tu_image_init(device, image, pCreateInfo, modifier,
-                                   plane_layouts);
+   result = tu_image_init(device, image, modifier, plane_layouts);
    if (result != VK_SUCCESS)
       goto fail;
 
@@ -836,8 +829,7 @@ tu_GetDeviceImageMemoryRequirements(
    struct tu_image image = {0};
 
    vk_image_init(&device->vk, &image.vk, pInfo->pCreateInfo);
-   tu_image_init(device, &image, pInfo->pCreateInfo, DRM_FORMAT_MOD_INVALID,
-                 NULL);
+   tu_image_init(device, &image, DRM_FORMAT_MOD_INVALID, NULL);
 
    tu_get_image_memory_requirements(device, &image, pMemoryRequirements);
 }
@@ -902,8 +894,7 @@ tu_GetDeviceImageSubresourceLayoutKHR(VkDevice _device,
    struct tu_image image = {0};
 
    vk_image_init(&device->vk, &image.vk, pInfo->pCreateInfo);
-   tu_image_init(device, &image, pInfo->pCreateInfo, DRM_FORMAT_MOD_INVALID,
-                 NULL);
+   tu_image_init(device, &image, DRM_FORMAT_MOD_INVALID, NULL);
 
    tu_get_image_subresource_layout(&image, pInfo->pSubresource, pLayout);
 }

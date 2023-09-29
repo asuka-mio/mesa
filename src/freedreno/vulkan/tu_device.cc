@@ -2832,7 +2832,7 @@ tu_BindImageMemory2(VkDevice _device,
             if (result != VK_SUCCESS)
                return result;
 
-            result = tu_image_init(device, image, NULL, eci.drmFormatModifier, a_plane_layouts);
+            result = tu_image_init(device, image, eci.drmFormatModifier, a_plane_layouts);
             if (result != VK_SUCCESS)
                return result;
          }

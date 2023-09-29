@@ -177,24 +177,23 @@ tu6_ubwc_compat_mode(VkFormat format)
 }
 
 bool
-tu6_mutable_format_list_ubwc_compatible(const VkImageFormatListCreateInfo *fmt_list)
+tu6_mutable_format_list_ubwc_compatible(const VkFormat *formats, uint32_t viewFormatCount)
 {
-   if (!fmt_list || !fmt_list->viewFormatCount)
+   if (!viewFormatCount)
       return false;
 
    /* We're only looking at format list cross compatibility here, check
     * ubwc_possible() for the base "is the format UBWC-able at all?"
     */
-   if (fmt_list->viewFormatCount == 1)
+   if (viewFormatCount == 1)
       return true;
 
-   enum tu6_ubwc_compat_type type =
-      tu6_ubwc_compat_mode(fmt_list->pViewFormats[0]);
+   enum tu6_ubwc_compat_type type = tu6_ubwc_compat_mode(formats[0]);
    if (type == TU6_UBWC_UNKNOWN_COMPAT)
       return false;
 
-   for (uint32_t i = 1; i < fmt_list->viewFormatCount; i++) {
-      if (tu6_ubwc_compat_mode(fmt_list->pViewFormats[i]) != type)
+   for (uint32_t i = 1; i < viewFormatCount; i++) {
+      if (tu6_ubwc_compat_mode(formats[i]) != type)
          return false;
    }
 
@@ -489,7 +488,8 @@ tu_get_image_format_properties(
             const VkImageFormatListCreateInfo *format_list =
                vk_find_struct_const(info->pNext,
                                     IMAGE_FORMAT_LIST_CREATE_INFO);
-            if (!tu6_mutable_format_list_ubwc_compatible(format_list))
+            if (!tu6_mutable_format_list_ubwc_compatible(format_list->pViewFormats, 
+                                                         format_list->viewFormatCount))
                return VK_ERROR_FORMAT_NOT_SUPPORTED;
          }
 
