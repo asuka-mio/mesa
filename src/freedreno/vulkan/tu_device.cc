@@ -281,6 +281,7 @@ get_device_extensions(const struct tu_physical_device *device,
 
 #ifdef ANDROID
    if (vk_android_get_ugralloc() != NULL) {
+      ext->ANDROID_external_memory_android_hardware_buffer = true,
       ext->ANDROID_native_buffer = true;
    }
 #endif
@@ -2821,12 +2822,26 @@ tu_BindImageMemory2(VkDevice _device,
       TU_FROM_HANDLE(tu_device_memory, mem, pBindInfos[i].memory);
 
       if (mem) {
+         VkResult result;
+         if (vk_image_is_android_hardware_buffer(&image->vk)) {
+            VkImageDrmFormatModifierExplicitCreateInfoEXT eci;
+            VkSubresourceLayout a_plane_layouts[TU_MAX_PLANE_COUNT];
+            result = vk_android_get_ahb_layout(mem->vk.ahardware_buffer,
+                                            &eci, a_plane_layouts,
+                                            TU_MAX_PLANE_COUNT);
+            if (result != VK_SUCCESS)
+               return result;
+
+            result = tu_image_init(device, image, NULL, eci.drmFormatModifier, a_plane_layouts);
+            if (result != VK_SUCCESS)
+               return result;
+         }
          image->bo = mem->bo;
          image->iova = mem->bo->iova + pBindInfos[i].memoryOffset;
 
          if (image->vk.usage & VK_IMAGE_USAGE_FRAGMENT_DENSITY_MAP_BIT_EXT) {
             if (!mem->bo->map) {
-               VkResult result = tu_bo_map(device, mem->bo);
+               result = tu_bo_map(device, mem->bo);
                if (result != VK_SUCCESS)
                   return result;
             }

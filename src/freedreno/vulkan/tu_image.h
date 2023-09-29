@@ -18,6 +18,8 @@
 #define tu_image_view_depth(iview, x) \
    ((iview->view.x & ~A6XX_##x##_COLOR_FORMAT__MASK) | A6XX_##x##_COLOR_FORMAT(FMT6_32_FLOAT))
 
+#define TU_MAX_PLANE_COUNT 3
+
 struct tu_image
 {
    struct vk_image vk;
@@ -126,5 +128,10 @@ tu_fragment_density_map_sample(const struct tu_image_view *fdm,
                                uint32_t x, uint32_t y,
                                uint32_t width, uint32_t height,
                                uint32_t layers, struct tu_frag_area *areas);
+
+VkResult
+tu_image_init(struct tu_device *device, struct tu_image *image,
+              const VkImageCreateInfo *pCreateInfo, uint64_t modifier,
+              const VkSubresourceLayout *plane_layouts);
 
 #endif /* TU_IMAGE_H */

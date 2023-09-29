@@ -434,7 +434,7 @@ format_list_has_swaps(const VkImageFormatListCreateInfo *fmt_list)
    return false;
 }
 
-static VkResult
+VkResult
 tu_image_init(struct tu_device *device, struct tu_image *image,
               const VkImageCreateInfo *pCreateInfo, uint64_t modifier,
               const VkSubresourceLayout *plane_layouts)
@@ -722,8 +722,6 @@ tu_CreateImage(VkDevice _device,
          modifier = DRM_FORMAT_MOD_LINEAR;
    }
 
-#define TU_MAX_PLANE_COUNT 3
-
    /* This section is removed by the optimizer for non-ANDROID builds */
    VkImageDrmFormatModifierExplicitCreateInfoEXT eci;
    VkSubresourceLayout a_plane_layouts[TU_MAX_PLANE_COUNT];
@@ -737,12 +735,20 @@ tu_CreateImage(VkDevice _device,
       modifier = eci.drmFormatModifier;
    }
 
+   *pImage = tu_image_to_handle(image);
+
+   /* This section is removed by the optimizer for non-ANDROID builds */
+   if (vk_image_is_android_hardware_buffer(&image->vk)) {
+      /* At this time, an AHB handle is not yet provided.
+       * Image layout will be filled up during vkBindImageMemory2
+       */
+      return VK_SUCCESS;
+   }
+
    result = tu_image_init(device, image, pCreateInfo, modifier,
                                    plane_layouts);
    if (result != VK_SUCCESS)
       goto fail;
-
-   *pImage = tu_image_to_handle(image);
 
    /* This section is removed by the optimizer for non-ANDROID builds */
    if (vk_image_is_android_native_buffer(&image->vk)) {
